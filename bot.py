@@ -10,7 +10,9 @@ import datetime
 # CONFIG
 # =========================================================
 
-TOKEN = "MTUwNDQ5ODIzNTU3NjY4NDY2Nw.GJcbgg.uYTFLrND0xyUHnBI2LsBqDaK_xj2zdtcqj9Y1w"
+import os
+
+TOKEN = os.getenv("TOKEN")
 
 GUILD_ID = 1504178459902087188
 
