@@ -5,12 +5,11 @@ import requests
 import uuid
 import time
 import datetime
+import os
 
 # =========================================================
 # CONFIG
 # =========================================================
-
-import os
 
 TOKEN = os.getenv("TOKEN")
 
@@ -38,26 +37,29 @@ intents.members = True
 # =========================================================
 
 class MyBot(discord.Client):
+
     def __init__(self):
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
 
     async def setup_hook(self):
+
         guild = discord.Object(id=GUILD_ID)
 
         self.tree.copy_global_to(guild=guild)
+
         await self.tree.sync(guild=guild)
 
 bot = MyBot()
 
 # =========================================================
-# ESCROW STORAGE
+# STORAGE
 # =========================================================
 
 escrow_sessions = {}
 
 # =========================================================
-# PRICE CONVERSION
+# PRICE
 # =========================================================
 
 def get_ltc_price():
@@ -73,7 +75,7 @@ def usd_to_ltc(usd):
     return round(usd / get_ltc_price(), 6)
 
 # =========================================================
-# PAYMENT CHECK
+# CHECK PAYMENT
 # =========================================================
 
 def get_new_payment(address, created_time):
@@ -83,8 +85,6 @@ def get_new_payment(address, created_time):
     data = requests.get(url).json()
 
     total = 0
-
-    newest_tx = None
 
     for tx in data.get("txs", []):
 
@@ -101,21 +101,22 @@ def get_new_payment(address, created_time):
         if tx_timestamp < created_time:
             continue
 
-        newest_tx = tx.get("hash")
-
         for out in tx.get("outputs", []):
 
             if address in out.get("addresses", []):
 
                 total += out.get("value", 0)
 
-    return total / 1e8, newest_tx
+    return total / 1e8
 
 # =========================================================
-# CLOSE TICKET VIEW
+# CLOSE TICKET
 # =========================================================
 
 class CloseTicketView(discord.ui.View):
+
+    def __init__(self):
+        super().__init__(timeout=None)
 
     @discord.ui.button(
         label="Close Ticket",
@@ -129,7 +130,8 @@ class CloseTicketView(discord.ui.View):
     ):
 
         await interaction.response.send_message(
-            "🔒 Closing ticket in 3 seconds..."
+            "🔒 Closing ticket in 3 seconds...",
+            ephemeral=True
         )
 
         await asyncio.sleep(3)
@@ -181,126 +183,13 @@ class PaymentButtons(discord.ui.View):
     ):
 
         await interaction.response.send_message(
-            "🔒 Closing ticket in 3 seconds..."
+            "🔒 Closing ticket in 3 seconds...",
+            ephemeral=True
         )
 
         await asyncio.sleep(3)
 
         await interaction.channel.delete()
-
-# =========================================================
-# LITECOIN PANEL
-# =========================================================
-
-class LitecoinPanel(discord.ui.View):
-
-    @discord.ui.button(
-        label="Pay with LTC",
-        emoji="<:ltc:1507880812643614972>",
-        style=discord.ButtonStyle.primary
-    )
-    async def ltc_pay(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
-
-        guild = interaction.guild
-
-        overwrites = {
-            guild.default_role: discord.PermissionOverwrite(
-                read_messages=False
-            ),
-
-            interaction.user: discord.PermissionOverwrite(
-                read_messages=True,
-                send_messages=True
-            )
-        }
-
-        channel = await guild.create_text_channel(
-            f"ltc-{interaction.user.name}",
-            overwrites=overwrites
-        )
-
-        await interaction.response.send_message(
-            f"✅ Created: {channel.mention}",
-            ephemeral=True
-        )
-
-        await start_escrow(channel, interaction.user)
-
-# =========================================================
-# BRAINROT PANEL
-# =========================================================
-
-class BrainrotPanel(discord.ui.View):
-
-    @discord.ui.button(
-        label="Pay with Brainrots",
-        emoji="<:brainrot:1507881329499570246>",
-        style=discord.ButtonStyle.success
-    )
-    async def brainrot_pay(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
-
-        guild = interaction.guild
-
-        overwrites = {
-            guild.default_role: discord.PermissionOverwrite(
-                read_messages=False
-            ),
-
-            interaction.user: discord.PermissionOverwrite(
-                read_messages=True,
-                send_messages=True
-            )
-        }
-
-        channel = await guild.create_text_channel(
-            f"brainrot-{interaction.user.name}",
-            overwrites=overwrites
-        )
-
-        await interaction.response.send_message(
-            f"✅ Created: {channel.mention}",
-            ephemeral=True
-        )
-
-        staff_role = guild.get_role(STAFF_ROLE_ID)
-
-        if staff_role:
-            await channel.send(
-                f"{staff_role.mention} 🔔 New Brainrot ticket."
-            )
-
-        embed = discord.Embed(
-            color=0x2b2d31
-        )
-
-        embed.add_field(
-            name="🪽 • Brainrot Payment Ticket • 🪽",
-            value="━━━━━━━━━━━━━━━━━━━━━━━━━━",
-            inline=False
-        )
-
-        embed.add_field(
-            name="Status",
-            value="Please wait for a staff member.",
-            inline=False
-        )
-
-        embed.set_footer(
-            text="Do not spam ping staff."
-        )
-
-        await channel.send(
-            embed=embed,
-            view=CloseTicketView()
-        )
 
 # =========================================================
 # START ESCROW
@@ -326,7 +215,7 @@ async def start_escrow(channel, user):
 
     embed.add_field(
         name="<:ltc:1507880812643614972> • Secure Litecoin Checkout •",
-        value="━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        value="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
         inline=False
     )
 
@@ -343,19 +232,25 @@ async def start_escrow(channel, user):
     )
 
     embed.add_field(
-        name="🆔 Session",
+        name="📥 Wallet",
+        value=f"`{LTC_WALLET}`",
+        inline=False
+    )
+
+    embed.add_field(
+        name="🆔 Session ID",
         value=f"`{session_id}`",
         inline=False
     )
 
     embed.add_field(
         name="⚠ Status",
-        value="Waiting for payment...",
+        value="Waiting for blockchain payment...",
         inline=False
     )
 
     embed.set_footer(
-        text="Payment verifies automatically."
+        text="Automatic blockchain verification enabled."
     )
 
     await channel.send(
@@ -366,7 +261,7 @@ async def start_escrow(channel, user):
     await monitor_escrow(channel, session_id)
 
 # =========================================================
-# MONITOR ESCROW
+# MONITOR PAYMENT
 # =========================================================
 
 async def monitor_escrow(channel, session_id):
@@ -377,12 +272,15 @@ async def monitor_escrow(channel, session_id):
 
         try:
 
-            paid, tx = get_new_payment(
+            paid = get_new_payment(
                 LTC_WALLET,
                 session["created"]
             )
 
-            if paid >= session["expected_ltc"] and not session["paid"]:
+            if (
+                paid >= session["expected_ltc"]
+                and not session["paid"]
+            ):
 
                 session["paid"] = True
 
@@ -398,6 +296,7 @@ async def monitor_escrow(channel, session_id):
                 )
 
                 if role:
+
                     await member.add_roles(role)
 
                 embed = discord.Embed(
@@ -405,20 +304,20 @@ async def monitor_escrow(channel, session_id):
                 )
 
                 embed.add_field(
-                    name="✅ • Payment Confirmed • ✅",
-                    value="━━━━━━━━━━━━━━━━━━━━━━━━━━",
+                    name="✅ • Payment Confirmed •",
+                    value="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
                     inline=False
                 )
 
                 embed.add_field(
-                    name="Session",
-                    value=f"`{session_id}`",
+                    name="User",
+                    value=member.mention,
                     inline=False
                 )
 
                 embed.add_field(
                     name="Status",
-                    value=f"{member.mention} received Buyer role.",
+                    value="Buyer role assigned successfully.",
                     inline=False
                 )
 
@@ -427,9 +326,129 @@ async def monitor_escrow(channel, session_id):
                 return
 
         except Exception as e:
-            print("Escrow Error:", e)
+
+            print("Payment Error:", e)
 
         await asyncio.sleep(CHECK_INTERVAL)
+
+# =========================================================
+# LTC PANEL
+# =========================================================
+
+class LitecoinPanel(discord.ui.View):
+
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label="Pay with LTC",
+        emoji="<:ltc:1507880812643614972>",
+        style=discord.ButtonStyle.secondary
+    )
+    async def ltc_pay(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        guild = interaction.guild
+
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(
+                read_messages=False
+            ),
+
+            interaction.user: discord.PermissionOverwrite(
+                read_messages=True,
+                send_messages=True
+            )
+        }
+
+        channel = await guild.create_text_channel(
+            name=f"ltc-{interaction.user.name}",
+            overwrites=overwrites
+        )
+
+        await interaction.response.send_message(
+            f"✅ Ticket opened: {channel.mention}",
+            ephemeral=True
+        )
+
+        await start_escrow(channel, interaction.user)
+
+# =========================================================
+# BRAINROT PANEL
+# =========================================================
+
+class BrainrotPanel(discord.ui.View):
+
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label="Pay with Brainrots",
+        emoji="<:brainrot:1507881329499570246>",
+        style=discord.ButtonStyle.secondary
+    )
+    async def brainrot_pay(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        guild = interaction.guild
+
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(
+                read_messages=False
+            ),
+
+            interaction.user: discord.PermissionOverwrite(
+                read_messages=True,
+                send_messages=True
+            )
+        }
+
+        channel = await guild.create_text_channel(
+            name=f"brainrot-{interaction.user.name}",
+            overwrites=overwrites
+        )
+
+        await interaction.response.send_message(
+            f"✅ Ticket opened: {channel.mention}",
+            ephemeral=True
+        )
+
+        staff_role = guild.get_role(STAFF_ROLE_ID)
+
+        if staff_role:
+
+            await channel.send(
+                f"{staff_role.mention} 🔔 New Brainrot Ticket"
+            )
+
+        embed = discord.Embed(
+            color=0x2b2d31
+        )
+
+        embed.add_field(
+            name="<:brainrot:1507881329499570246> • Brainrot Payment Ticket •",
+            value=(
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "Please wait for a staff member.\n"
+                "A staff member will assist you shortly."
+            ),
+            inline=False
+        )
+
+        embed.set_footer(
+            text="Do not spam ping staff."
+        )
+
+        await channel.send(
+            embed=embed,
+            view=CloseTicketView()
+        )
 
 # =========================================================
 # PANEL COMMAND
@@ -444,17 +463,17 @@ async def panel(interaction: discord.Interaction):
     # LTC PANEL
 
     ltc_embed = discord.Embed(
-        description="\n",
         color=0x2b2d31
     )
 
     ltc_embed.add_field(
         name="<:ltc:1507880812643614972> • Pay with Litecoin •",
         value=(
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "Secure automatic crypto payment.\n"
-            "Instant blockchain verification.\n"
-            "Automatic Buyer role delivery."
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "Secure automatic crypto payments.\n\n"
+            "• Automatic blockchain verification\n"
+            "• Instant Buyer role delivery\n"
+            "• Secure escrow checkout"
         ),
         inline=False
     )
@@ -462,16 +481,17 @@ async def panel(interaction: discord.Interaction):
     # BRAINROT PANEL
 
     brain_embed = discord.Embed(
-        description="\n",
         color=0x2b2d31
     )
 
     brain_embed.add_field(
         name="<:brainrot:1507881329499570246> • Pay with Brainrots •",
         value=(
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "Open a Brainrot support/payment ticket.\n"
-            "Staff will assist you shortly."
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "Open a Brainrot payment/support ticket.\n\n"
+            "• Private support ticket\n"
+            "• Staff assistance\n"
+            "• Fast response"
         ),
         inline=False
     )
